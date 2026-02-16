@@ -85,6 +85,7 @@ object SBInfo {
         server = null
         serverType = null
         lastLocationPacket = null
+        location = ""
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
@@ -95,6 +96,7 @@ object SBInfo {
                 server = event.packet.serverName
                 serverType = event.packet.serverType.orElse(null)
                 lastLocationPacket = event.packet
+                location = ""
                 println(event.packet)
                 LocationChangeEvent(event.packet).postAndCatch()
             }
@@ -144,6 +146,7 @@ enum class SkyblockIsland(val displayName: String, val mode: String) {
     SpiderDen("Spider's Den", "combat_1"),
     CrimsonIsle("Crimson Isle", "crimson_isle"),
     TheEnd("The End", "combat_3"),
+    BackwaterBayou("Backwater Bayou", "fishing_1"),
     GoldMine("Gold Mine", "mining_1"),
     DeepCaverns("Deep Caverns", "mining_2"),
     DwarvenMines("Dwarven Mines", "mining_3"),
@@ -156,8 +159,13 @@ enum class SkyblockIsland(val displayName: String, val mode: String) {
     DarkAuction("Dark Auction", "dark_auction"),
     JerryWorkshop("Jerry's Workshop", "winter"),
     KuudraHollow("Kuudra's Hollow", "kuudra"),
+    GlaciteMineshafts("Glacite Mineshafts", "mineshaft"),
     TheRift("The Rift", "rift"),
     Unknown("(Unknown)", "");
+
+    companion object {
+        val byMode = entries.associateBy { it.mode }
+    }
 
     object ModeSerializer : KSerializer<SkyblockIsland> {
         override val descriptor: SerialDescriptor =
@@ -195,3 +203,7 @@ enum class SkyblockIsland(val displayName: String, val mode: String) {
         }
     }
 }
+
+
+/** Returns the current island based on the mode, or [SkyblockIsland.Unknown] if not found */
+val SkyblockIsland.Companion.current get() = SkyblockIsland.byMode[SBInfo.mode] ?: SkyblockIsland.Unknown

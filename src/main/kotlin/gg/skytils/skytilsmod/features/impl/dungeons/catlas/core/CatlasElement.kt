@@ -90,7 +90,8 @@ object CatlasElement : GuiElement(name = "Dungeon Map", x = 0, y = 0) {
             for (x in 0..10) {
                 val tile = DungeonInfo.dungeonList[y * 11 + x]
 
-                if (tile is Unknown || (tile.state == RoomState.UNDISCOVERED && !isAlwaysVisible(tile))) continue
+                if (tile is Unknown || (tile is Room && tile.state == RoomState.UNDISCOVERED)) continue
+                if (tile is Door && getDoorState(tile, y, x) == RoomState.UNDISCOVERED) continue
 
                 val xOffset = (x shr 1) * (MapUtils.mapRoomSize + connectorSize)
                 val yOffset = (y shr 1) * (MapUtils.mapRoomSize + connectorSize)
@@ -132,13 +133,22 @@ object CatlasElement : GuiElement(name = "Dungeon Map", x = 0, y = 0) {
         GlStateManager.popMatrix()
     }
 
-    private fun isAlwaysVisible(tile: Tile): Boolean {
-        if (!CatlasConfig.mapShowBeforeStart || DungeonTimer.dungeonStartTime != -1L) return false
+    private fun getDoorState(door: Door, row: Int, column: Int): RoomState {
+        val rooms = getConnectingRooms(door, row, column) ?: return RoomState.UNDISCOVERED
+        if (rooms.toList().any { it.state == RoomState.UNDISCOVERED }) return RoomState.UNDISCOVERED
+        return RoomState.PREVISITED
+    }
 
-        return when (tile) {
-            is Room -> tile.uniqueRoom in DungeonInfo.preStartVisitedRooms
-            else -> false
-        }
+    private fun getConnectingRooms(door: Door, row: Int, column: Int): Pair<Room, Room>? {
+        val vertical = column % 2 == 0
+        val connectingTiles = runCatching {
+            if (vertical) {
+                DungeonInfo.dungeonList[(row - 1) * 11 + column] to DungeonInfo.dungeonList[(row + 1) * 11 + column]
+            } else {
+                DungeonInfo.dungeonList[row * 11 + column - 1] to DungeonInfo.dungeonList[row * 11 + column + 1]
+            }
+        }.getOrNull() ?: return null
+        return (connectingTiles.first as? Room ?: return null) to (connectingTiles.second as? Room ?: return null)
     }
 
     private fun renderText() {
@@ -150,9 +160,9 @@ object CatlasElement : GuiElement(name = "Dungeon Map", x = 0, y = 0) {
             else -> 10.0 // neu
         }
 
-        DungeonInfo.uniqueRooms.forEach { unq ->
+        DungeonInfo.uniqueRooms.values.forEach { unq ->
             val room = unq.mainRoom
-            if ((room.state == RoomState.UNDISCOVERED || room.state == RoomState.UNOPENED) && !isAlwaysVisible(room)) return@forEach
+            if (room.state == RoomState.UNDISCOVERED || room.state == RoomState.UNOPENED) return@forEach
             val halfRoom = (DungeonMapColorParser.halfRoom.takeUnless { it == -1 } ?: 8)
             val size = MapUtils.mapRoomSize + (DungeonMapColorParser.quarterRoom.takeUnless { it == -1 } ?: 4)
             val checkPos = unq.getCheckmarkPosition()
@@ -163,11 +173,13 @@ object CatlasElement : GuiElement(name = "Dungeon Map", x = 0, y = 0) {
             val yOffsetName = (namePos.second / 2f) * size
 
             val color = if (CatlasConfig.mapColorText) when (room.state) {
-                RoomState.GREEN -> 0x55ff55
-                RoomState.CLEARED -> 0xffffff
-                RoomState.FAILED -> 0xff0000
-                else -> 0xaaaaaa
-            } else 0xffffff
+                RoomState.GREEN -> 0x55FF55
+                RoomState.CLEARED -> 0xFFFFFF
+                RoomState.FAILED -> 0xFF0000
+                RoomState.PREVISITED -> 0x555555
+                else -> 0xAAAAAA
+            } else 0xFFFFFF
+
             val secretCount = room.data.secrets
             val roomType = room.data.type
             val hasSecrets = secretCount > 0
@@ -179,7 +191,7 @@ object CatlasElement : GuiElement(name = "Dungeon Map", x = 0, y = 0) {
                 else -> error("Invalid foundRoomSecrets value")
             }
 
-            if (CatlasConfig.mapRoomSecrets == 2 && hasSecrets) {
+            if (hasSecrets && (CatlasConfig.mapRoomSecrets == 2 || CatlasConfig.mapRoomSecrets == 3 && room.state != RoomState.GREEN)) {
                 GlStateManager.pushMatrix()
                 GlStateManager.translate(
                     xOffsetCheck + halfRoom.toFloat(),

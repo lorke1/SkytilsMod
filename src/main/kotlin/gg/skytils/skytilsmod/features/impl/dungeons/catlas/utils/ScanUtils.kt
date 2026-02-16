@@ -34,12 +34,10 @@ import kotlin.math.roundToInt
 
 object ScanUtils {
     @OptIn(ExperimentalSerializationApi::class)
-    val roomList by lazy {
-        json.decodeFromStream<Set<RoomData>>(
-            mc.resourceManager.getResource(
-                ResourceLocation("catlas:rooms.json")
-            ).inputStream
-        )
+    val roomList: Set<RoomData> by lazy {
+        mc.resourceManager.getResource(
+            ResourceLocation("catlas:rooms.json")
+        ).inputStream.use(json::decodeFromStream)
     }
 
     fun getRoomData(x: Int, z: Int): RoomData? {
@@ -60,7 +58,7 @@ object ScanUtils {
         val x = ((pos.x - DungeonScanner.startX + 15) shr 5)
         val z = ((pos.z - DungeonScanner.startZ + 15) shr 5)
         val room = DungeonInfo.dungeonList.getOrNull(x * 2 + z * 22)
-        return if (room is Room) room else null
+        return room as? Room
     }
 
     fun getCore(x: Int, z: Int): Int {
